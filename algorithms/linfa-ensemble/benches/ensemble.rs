@@ -38,7 +38,7 @@ fn random_forest_bench(c: &mut Criterion) {
         .bootstrap_proportion(bootstrap_proportion);
 
     // Benchmark training time 10 times for each training sample size
-    let mut group = c.benchmark_group("random forest");
+    let mut group = c.benchmark_group("random forest fit");
     config::set_default_benchmark_configs(&mut group);
 
     for n in training_set_sizes.iter() {
@@ -54,6 +54,28 @@ fn random_forest_bench(c: &mut Criterion) {
 
         group.bench_with_input(BenchmarkId::from_parameter(n), &dataset, |b, d| {
             b.iter(|| hyperparams.fit(d))
+        });
+    }
+
+    group.finish();
+
+    let mut group = c.benchmark_group("random forest inference");
+    config::set_default_benchmark_configs(&mut group);
+
+    for n in training_set_sizes.iter() {
+        let centroids =
+            Array2::random_using((n_classes, n_features), Uniform::new(-30., 30.), &mut rng);
+
+        let train_x = generate_blobs(&centroids, *n, &mut rng);
+        #[allow(clippy::manual_repeat_n)]
+        let train_y: Array1<usize> = (0..n_classes)
+            .flat_map(|x| std::iter::repeat(x).take(*n).collect::<Vec<usize>>())
+            .collect::<Array1<usize>>();
+        let dataset = DatasetBase::new(train_x, train_y);
+        let model = hyperparams.fit(&dataset).unwrap();
+
+        group.bench_with_input(BenchmarkId::from_parameter(n), &dataset, |b, d| {
+            b.iter(|| model.predict(d))
         });
     }
 
